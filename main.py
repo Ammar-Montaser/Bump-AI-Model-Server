@@ -5,7 +5,7 @@ from flask import Flask, request, jsonify
 from firebase_admin import credentials, firestore, initialize_app
 
 # Initialize Firebase using credentials from an environment variable
-firebase_credentials = os.getenv('FIREBASE_CREDENTIALS')  # Environment variable holding JSON content
+firebase_credentials = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON')  # Environment variable holding JSON content
 if not firebase_credentials:
     raise ValueError("FIREBASE_CREDENTIALS environment variable is not set")
 
