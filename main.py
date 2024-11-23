@@ -66,8 +66,8 @@ def recommend_users():
                 continue
 
             user_location = user_data.get('location', {})
-            user_lat = user_location.get('latitude')
-            user_lon = user_location.get('longitude')
+            user_lat = user_location.latitude
+            user_lon = user_location.longitude
 
             if user_lat is not None and user_lon is not None:
                 distance = calculate_distance(requesting_lat, requesting_lon, user_lat, user_lon)
