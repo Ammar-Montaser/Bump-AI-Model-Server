@@ -31,7 +31,7 @@ def recommend_users():
         data = request.json
         requesting_user_id = data.get('user_id')
         distance_limit = data.get('distance_limit', 50)  # Default to 50 km if not specified
-
+        print(requesting_user_id, distance_limit);
         # Fetch the requesting user's data
         requesting_user_ref = db.collection('users').document(requesting_user_id)
         requesting_user = requesting_user_ref.get()
