@@ -40,8 +40,8 @@ def recommend_users():
 
         requesting_user_data = requesting_user.to_dict()
         requesting_user_location = requesting_user_data.get('location', {})
-        requesting_lat = requesting_user_location.get('latitude')
-        requesting_lon = requesting_user_location.get('longitude')
+        requesting_lat = requesting_user_location.latitude
+        requesting_lon = requesting_user_location.longitude
 
         if requesting_lat is None or requesting_lon is None:
             return jsonify({'error': 'User location not available'}), 400
