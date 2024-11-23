@@ -74,8 +74,7 @@ def recommend_users():
                 if distance <= distance_limit or len(recommended_users) < 25:
                     recommended_users.append({
                         'user_id': user_id,
-                        'name': user_data.get('name'),
-                        'distance': distance
+                       
                     })
 
             if len(recommended_users) == 25:
