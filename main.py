@@ -93,9 +93,9 @@ def recommend_users():
         for recommended_user in recommended_users:
             recommended_users_ref.document(recommended_user['user_id']).set({
                 'user_id': recommended_user['user_id'],
-                'name': recommended_user['name'],
+                'name': recommended_user['display_name'],
                 'distance': recommended_user['distance'],
-                'recommended_at': datetime.utcnow()  # Add timestamp of recommendation
+                'recommended_at': datetime.now()  # Add timestamp of recommendation
             })
 
         return jsonify({'recommended_users': recommended_users}), 200
