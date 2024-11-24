@@ -84,7 +84,7 @@ def recommend_users():
                     distance = calculate_distance(requesting_lat, requesting_lon, user_lat, user_lon)
                     if distance <= distance_limit or len(recommended_users) < 25:
                         recommended_users.append({
-                            'user_id': user_id,
+                            'user_id': db.collection('users').document(user_id),  # Return document reference
                             'name': user_data.get('display_name'),
                             'distance': distance
                         })
@@ -95,7 +95,7 @@ def recommend_users():
 
         # Add recommended users to the subcollection
         for recommended_user in recommended_users:
-            recommended_users_ref.document(recommended_user['user_id']).set({
+            recommended_users_ref.document(recommended_user['user_id'].id).set({
                 'user_id': recommended_user['user_id'],
                 'name': recommended_user['name'],
                 'distance': recommended_user['distance'],
