@@ -52,6 +52,10 @@ def recommend_users():
         friends_snapshot = db.collection('users').document(requesting_user_id).collection('friends').stream()
         friend_ids = {friend.id for friend in friends_snapshot}
 
+        # Fetch users that have been swiped by the requesting user
+        swipes_snapshot = db.collection('users').document(requesting_user_id).collection('swipes').stream()
+        swiped_user_ids = {swiped.id for swiped in swipes_snapshot}
+
         # Fetch all users
         users_ref = db.collection('users')
         all_users = users_ref.stream()
@@ -66,8 +70,8 @@ def recommend_users():
             user_data = user.to_dict()
             user_id = user.id
 
-            # Skip if the user is the requesting user, already recommended, or a friend
-            if user_id == requesting_user_id or user_id in recommended_user_ids or user_id in friend_ids:
+            # Skip if the user is the requesting user, already recommended, a friend, or swiped
+            if user_id == requesting_user_id or user_id in recommended_user_ids or user_id in friend_ids or user_id in swiped_user_ids:
                 continue
 
             user_location = user_data.get('location', None)
