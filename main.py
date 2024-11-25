@@ -98,6 +98,7 @@ def recommend_users():
             recommended_users_ref.document(recommended_user['user_id'].id).set({
                 'user_id': recommended_user['user_id'],
                 'name': recommended_user['name'],
+                "isSwipped": False,
                 'recommended_at': datetime.now()  # Add timestamp of recommendation
             })
 
