@@ -24,7 +24,7 @@ colorama==0.4.4
 frozenlist==1.2.0
 geographiclib==1.52
 geopy==2.4.1
-google-api-core==3.0.0dev
+google-api-core==2.23.0
 google-api-python-client==2.42.0
 google-auth==2.6.2
 google-auth-httplib2==0.1.0
