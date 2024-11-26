@@ -1,10 +1,9 @@
 import math
 import os
 import json
-import pickle
-from datetime import datetime, date
 from flask import Flask, request, jsonify
 from firebase_admin import credentials, firestore, initialize_app
+from datetime import datetime
 
 # Initialize Firebase using credentials from an environment variable
 firebase_credentials = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON')  # Environment variable holding JSON content
@@ -26,19 +25,6 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
-# Helper function to calculate age from birthday
-def calculate_age(birthday):
-    today = date.today()
-    return today.year - birthday.year - ((today.month, today.day) < (birthday.month, birthday.day))
-
-# Load the model using pickle
-model_path = os.getenv('MODEL_PATH', 'model.pkl')  # Path to the model file
-if not os.path.exists(modelrf.pkl):
-    raise FileNotFoundError("Model file not found at specified path")
-
-with open(model_path, 'rb') as model_file:
-    model = pickle.load(model_file)
-
 # Endpoint to recommend users
 @app.route('/recommend_users', methods=['POST'])
 def recommend_users():
@@ -46,11 +32,12 @@ def recommend_users():
         data = request.json
         requesting_user_id = data.get('user_id')
         distance_limit = data.get('distance_limit', 50)  # Default to 50 km if not specified
+        print(requesting_user_id, distance_limit)
 
         # Fetch the requesting user's data
         requesting_user_ref = db.collection('users').document(requesting_user_id)
         requesting_user = requesting_user_ref.get()
-        if not requesting_user.exists():
+        if not requesting_user.exists:
             return jsonify({'error': 'User not found'}), 404
 
         requesting_user_data = requesting_user.to_dict()
@@ -61,23 +48,7 @@ def recommend_users():
         requesting_lat = requesting_user_location.latitude
         requesting_lon = requesting_user_location.longitude
 
-        # Calculate requesting user's age
-        requesting_birthday_str = requesting_user_data.get('birthday')
-        if not requesting_birthday_str:
-            return jsonify({'error': 'User birthday not available'}), 400
-
-        requesting_birthday = datetime.strptime(requesting_birthday_str, "%Y-%m-%d").date()
-        requesting_user_age = calculate_age(requesting_birthday)
-
-        # Fetch interests for the requesting user
-        requesting_interests_ref = requesting_user_ref.collection('interests').document('ratings')
-        requesting_interests_doc = requesting_interests_ref.get()
-        if not requesting_interests_doc.exists():
-            return jsonify({'error': 'User interests not available'}), 400
-
-        requesting_interests = requesting_interests_doc.to_dict()
-
-        # Fetch the list of friends
+        # Fetch friends of the requesting user
         friends_snapshot = db.collection('users').document(requesting_user_id).collection('friends').stream()
         friend_ids = {friend.id for friend in friends_snapshot}
 
@@ -111,45 +82,12 @@ def recommend_users():
                 # Calculate distance
                 if user_lat is not None and user_lon is not None:
                     distance = calculate_distance(requesting_lat, requesting_lon, user_lat, user_lon)
-                    if distance <= distance_limit:
-                        # Fetch interests for the potential user
-                        user_interests_ref = db.collection('users').document(user_id).collection('interests').document('ratings')
-                        user_interests_doc = user_interests_ref.get()
-                        if not user_interests_doc.exists():
-                            continue
-
-                        user_interests = user_interests_doc.to_dict()
-
-                        # Calculate user's age
-                        user_birthday_str = user_data.get('birthday')
-                        if not user_birthday_str:
-                            continue
-
-                        user_birthday = datetime.strptime(user_birthday_str, "%Y-%m-%d").date()
-                        user_age = calculate_age(user_birthday)
-
-                        # Prepare input for the model
-                        model_input = [
-                            user_id,  # iid
-                            requesting_user_id,  # pid
-                            0,  # Placeholder for match (output)
-                            user_age,
-                            requesting_user_age,
-                            abs(user_age - requesting_user_age),
-                            *[requesting_interests.get(key, 0) for key in requesting_interests.keys()],
-                            *[user_interests.get(key, 0) for key in user_interests.keys()]
-                        ]
-
-                        # Predict match score
-                        match_score = model.predict([model_input])[0]
-
-                        if match_score > 0.5:  # Example threshold for recommendation
-                            recommended_users.append({
-                                'user_id': db.collection('users').document(user_id),  # Return document reference
-                                'name': user_data.get('display_name'),
-                                'distance': distance,
-                                'match_score': match_score
-                            })
+                    if distance <= distance_limit or len(recommended_users) < 25:
+                        recommended_users.append({
+                            'user_id': db.collection('users').document(user_id),  # Return document reference
+                            'name': user_data.get('display_name'),
+                            'distance': distance
+                        })
 
             # Stop once we have 25 recommended users
             if len(recommended_users) == 25:
@@ -161,7 +99,6 @@ def recommend_users():
                 'user_id': recommended_user['user_id'],
                 'name': recommended_user['name'],
                 "isSwipped": False,
-                'match_score': recommended_user['match_score'],
                 'recommended_at': datetime.now()  # Add timestamp of recommendation
             })
 
