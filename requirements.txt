@@ -1,4 +1,4 @@
-python==1.21.2 
+python_version==1.21.2 
 click==8.1.7
 Flask==3.0.0
 gunicorn==20.1.0
