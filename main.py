@@ -1,5 +1,6 @@
 import math
 import os
+import pickle
 import json
 from flask import Flask, request, jsonify
 from firebase_admin import credentials, firestore, initialize_app
@@ -15,6 +16,7 @@ initialize_app(cred)
 db = firestore.client()
 
 app = Flask(__name__)
+model = pickle.load(open('modelrf.pkl', 'rb'))
 
 # Helper function to calculate distance between two coordinates
 def calculate_distance(lat1, lon1, lat2, lon2):
