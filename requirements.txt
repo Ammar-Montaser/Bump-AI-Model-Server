@@ -23,7 +23,7 @@ charset-normalizer==2.0.9
 colorama==0.4.4
 frozenlist==1.2.0
 geographiclib==1.52
-geopy==2.23.0
+geopy==2.4.1
 google-api-core==3.0.0dev
 google-api-python-client==2.42.0
 google-auth==2.6.2
