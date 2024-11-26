@@ -15,94 +15,113 @@ cred = credentials.Certificate(json.loads(firebase_credentials))
 initialize_app(cred)
 db = firestore.client()
 
-# Load the pre-trained model
-model_path = "modelrf.pkl"  # Update this path
-with open(model_path, "rb") as file:
-    model = pickle.load(file)
-
 app = Flask(__name__)
 
-# Helper function to calculate age difference
-def calculate_age_difference(age1, age2):
-    return abs(age1 - age2)
+# Load the pre-trained model
+model_path = "modelrf.pkl"  # Replace with the actual path to your model file
+with open(model_path, 'rb') as file:
+    model = pickle.load(file)
 
-# Endpoint for recommendations
+# Helper function to calculate distance between two coordinates
+def calculate_distance(lat1, lon1, lat2, lon2):
+    R = 6371  # Earth's radius in kilometers
+    d_lat = math.radians(lat2 - lat1)
+    d_lon = math.radians(lon2 - lon1)
+    a = math.sin(d_lat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
+# Endpoint to recommend users
 @app.route('/recommend_users', methods=['POST'])
 def recommend_users():
     try:
         data = request.json
-        user_id = data.get('user_id')
-        target_user_id = data.get('target_user_id')  # Assuming we are comparing with another specific user
-
-        if not user_id or not target_user_id:
-            return jsonify({"error": "Missing user_id or target_user_id"}), 400
+        requesting_user_id = data.get('user_id')
+        distance_limit = data.get('distance_limit', 50)  # Default to 50 km if not specified
 
         # Fetch the requesting user's data
-        user_doc = db.collection('users').document(user_id).get()
-        target_user_doc = db.collection('users').document(target_user_id).get()
+        requesting_user_ref = db.collection('users').document(requesting_user_id)
+        requesting_user = requesting_user_ref.get()
+        if not requesting_user.exists:
+            return jsonify({'error': 'User not found'}), 404
 
-        if not user_doc.exists or not target_user_doc.exists:
-            return jsonify({"error": "One or both users not found"}), 404
+        requesting_user_data = requesting_user.to_dict()
+        requesting_user_location = requesting_user_data.get('location', None)
+        if requesting_user_location is None:
+            return jsonify({'error': 'User location not available'}), 400
 
-        user_data = user_doc.to_dict()
-        target_user_data = target_user_doc.to_dict()
+        requesting_lat = requesting_user_location.latitude
+        requesting_lon = requesting_user_location.longitude
 
-        # Get the 'interests' subcollection for both users
-        user_interests = db.collection('users').document(user_id).collection('interests').document('ratings').get()
-        target_interests = db.collection('users').document(target_user_id).collection('interests').document('ratings').get()
+        # Fetch friends of the requesting user
+        friends_snapshot = db.collection('users').document(requesting_user_id).collection('friends').stream()
+        friend_ids = {friend.id for friend in friends_snapshot}
 
-        if not user_interests.exists or not target_interests.exists:
-            return jsonify({"error": "Interest ratings missing for one or both users"}), 404
+        # Fetch users that have been swiped by the requesting user
+        swipes_snapshot = db.collection('users').document(requesting_user_id).collection('swipes').stream()
+        swiped_user_ids = {swiped.id for swiped in swipes_snapshot}
 
-        user_interests_data = user_interests.to_dict()
-        target_interests_data = target_interests.to_dict()
+        # Fetch all users
+        users_ref = db.collection('users')
+        all_users = users_ref.stream()
 
-        # Ensure all required interest fields are present
-        interest_fields = [
-            "sports", "tvsports", "exercise", "dining", "museums", "art", "hiking", "gaming",
-            "clubbing", "reading", "tv", "theater", "movies", "concerts", "music", "shopping", "yoga"
-        ]
-        for field in interest_fields:
-            if field not in user_interests_data or field not in target_interests_data:
-                return jsonify({"error": f"Missing interest field {field} for one or both users"}), 400
+        # Filter users to recommend
+        potential_users = []
+        for user in all_users:
+            user_data = user.to_dict()
+            user_id = user.id
 
-        # Calculate features
-        features = {
-            "iid": user_id,
-            "pid": target_user_id,
-            "match": None,  # This is what the model predicts
-            "age_o": target_user_data.get("age"),
-            "age": user_data.get("age"),
-            "dif": calculate_age_difference(user_data.get("age"), target_user_data.get("age")),
-        }
+            # Skip if the user is the requesting user, a friend, or swiped
+            if user_id == requesting_user_id or user_id in friend_ids or user_id in swiped_user_ids:
+                continue
 
-        # Add user interests
-        for field in interest_fields:
-            features[field] = user_interests_data[field]
+            user_location = user_data.get('location', None)
+            if user_location:
+                user_lat = user_location.latitude
+                user_lon = user_location.longitude
 
-        # Add target user interests (as _p fields)
-        for field in interest_fields:
-            features[f"{field}_p"] = target_interests_data[field]
+                # Calculate distance
+                if user_lat is not None and user_lon is not None:
+                    distance = calculate_distance(requesting_lat, requesting_lon, user_lat, user_lon)
+                    if distance <= distance_limit:
+                        potential_users.append((user_id, user_data, distance))
 
-        # Prepare the feature list in the required order for prediction
-        feature_order = [
-            "iid", "pid", "match", "age_o", "age", "dif",
-            *interest_fields,
-            *(f"{field}_p" for field in interest_fields)
-        ]
-        feature_values = [features[field] for field in feature_order if field in features]
+        # Prepare data for the model
+        recommendations = []
+        for user_id, user_data, distance in potential_users:
+            # Fetch interest ratings for both users
+            requesting_interests = requesting_user_ref.collection('interests').document('ratings').get().to_dict()
+            user_interests = db.collection('users').document(user_id).collection('interests').document('ratings').get().to_dict()
 
-        # Predict using the model
-        prediction = model.predict([feature_values])[0]  # Assuming binary classification (0 or 1)
+            # Check if interest ratings exist for both users
+            if not requesting_interests or not user_interests:
+                continue
 
-        # Return the prediction
-        return jsonify({
-            "prediction": prediction,
-            "features": features
-        }), 200
+            # Prepare model input
+            model_input = [
+                user_id,
+                requesting_user_id,
+                0,  # Placeholder for match label
+                requesting_user_data['age'],
+                user_data['age'],
+                abs(requesting_user_data['age'] - user_data['age']),
+            ]
+            model_input.extend(requesting_interests.values())
+            model_input.extend(user_interests.values())
+
+            # Predict match label using the model
+            prediction = model.predict([model_input[2:]])[0]
+            recommendations.append((user_id, prediction, distance))
+
+        # Sort by prediction (match label 1 on top) and distance
+        recommendations.sort(key=lambda x: (-x[1], x[2]))
+
+        # Prepare response
+        recommended_user_ids = [rec[0] for rec in recommendations]
+        return jsonify({'recommended_user_ids': recommended_user_ids}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
