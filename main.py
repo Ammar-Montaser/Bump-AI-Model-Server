@@ -16,7 +16,7 @@ initialize_app(cred)
 db = firestore.client()
 
 # Load the pre-trained model
-model_path = "/modelrf.pkl"  # Update this path
+model_path = "modelrf.pkl"  # Update this path
 with open(model_path, "rb") as file:
     model = pickle.load(file)
 
