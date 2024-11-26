@@ -8,3 +8,4 @@ Werkzeug==1.0.1
 firebase-admin
 scikit-learn==1.0.2
 pickle-mixin==1.0.2  # To handle pickled models (optional, included for compatibility)
+numpy==1.22.3
