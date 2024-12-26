@@ -104,7 +104,7 @@ def recommend_users():
                 'recommended_at': datetime.now()  # Add timestamp of recommendation
             })
 
-        return jsonify({'recommended_users': recommended_users}), 200
+        return jsonify({'recommended_users': recommended_user_ids}), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
